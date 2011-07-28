@@ -1,0 +1,230 @@
+<?php
+// $Id: autosave.module,v 1.9 2009/11/06 00:41:16 ptalindstrom Exp $
+
+/**
+ * @file
+ * Does background saves of node being edited.
+ */
+
+define('AUTOSAVE_PATH', drupal_get_path('module', 'autosave'));
+
+/**
+ * Implements hook_help().
+ */
+function autosave_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case 'admin/help#autosave':
+      $output = '<p>' . t('The autosave module automatically saves a form after a period of time.') . '</p>';
+      break;
+  }
+  return $output;
+}
+
+/**
+* Implements hook_menu().
+*/
+function autosave_menu() {
+  $items['autosave/handler'] = array(
+    'title'           => 'Autosave save',
+    'page callback'   => 'autosave_save',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['admin/config/autosave'] = array(
+    'title'            => 'Autosave',
+    'description'      => 'Configure autosave settings.',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('autosave_admin_settings'),
+    'access arguments' => array('administer nodes'),
+  );
+  return $items;
+}
+
+/**
+ * Menu callback; return the autosave module settings form.
+ */
+function autosave_admin_settings($form, &$form_state) {
+  if (!file_exists(AUTOSAVE_PATH . '/jquery.field.js')) {
+    drupal_set_message(t('Unable to find the jQuery Field Plugin in !path. Please <a href="http://plugins.jquery.com/files/jquery.field.js_4.txt">download jquery.field.js</a> 
+      and place it into !path.', array('!path' => $path)), 'error');
+  }
+
+  $form['autosave_period'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Autosave after this amount seconds has passed'),
+    '#default_value' => variable_get('autosave_period', 10),
+  );
+
+  $form['autosave_hidden'] = array(
+    '#prefix' =>  '<div class="form-item"><label for="edit-autosave-hidden">' . t('Stealth Mode') . '</label>',
+    '#type' => 'checkbox',
+    '#title' => t('Run in stealth mode'),
+    '#description' => t('If this check box is selected no popup will appear notifying user that the form has been autosaved.'),
+    '#default_value' => variable_get('autosave_hidden', 0),
+    '#suffix' => "</div>",
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * Implements hook_form_alter() for node_type_form
+().
+ */
+function autosave_form_node_type_form_alter(&$form, $form_state) {
+  $form['workflow']['autosave'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable Autosave to add/edit forms for this node type'),
+    '#default_value' => variable_get('autosave_' . $form['#node_type']->type, 0),
+    '#description' => t('Check this box to enable Autosave for this node type.')
+  );
+}
+
+/**
+ * Implements hook_form_alter().
+().
+ */
+function autosave_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  $path = $_GET['q'];
+
+  if (stristr($form_id, '_node_form') && arg(0) != 'admin') {
+
+    // check if this content_type has the autosave function enabled and make sure it's a node edit or add form
+    if ((variable_get('autosave_' . $form['type']['#value'], 0))) {
+      drupal_add_js(AUTOSAVE_PATH . '/autosave.js');
+      drupal_add_js(AUTOSAVE_PATH . '/jquery.field.js');
+      drupal_add_css(AUTOSAVE_PATH . '/autosave.css');
+
+      // if WYSIWYG module is enabled; lets let JS know this
+      if (module_exists('wysiwyg')) {
+        $settings['autosave']['wysiwyg'] = 1;
+      }
+      else {
+        $settings['autosave']['wysiwyg'] = 0;
+      }
+      
+      $formid = str_replace("_", "-", $form_id);  
+      
+      $settings['autosave']['formid'] = $formid;
+      $settings['autosave']['url'] = url('autosave/handler');
+      $settings['autosave']['period'] = variable_get('autosave_period', 10);
+      $settings['autosave']['q'] = $path;
+      $settings['autosave']['hidden'] = variable_get('autosave_hidden', 0);
+
+      // If an autosaved version of the form exists, make it available via javascript.
+      if ($autosaved_form = autosave_get_autosaved_form($formid, $path, $user->uid)) {
+        //$autosaved_form_id = $form['type']['#value'] ? $form['type']['#value'] .'_node_form' : 'node_form';
+        $settings['autosave'] = array_merge($settings['autosave'], array(
+//          'serialized' => unserialize($autosaved_form['serialized']),
+          'serialized' => $autosaved_form['serialized'],
+          'saved_date' => format_date($autosaved_form['timestamp'], 'medium'),
+        ));
+      }
+      drupal_add_js($settings, array('type' => 'setting', 'scope' => JS_DEFAULT));
+    }
+  }
+}
+
+
+/**
+ * Menu callback; autosaves the node.
+ */
+function autosave_save() {
+  global $user;
+
+  $path = $_POST['q'];
+  $form_id = $_POST['form_id'];
+  // Not all variables need to be serialized.
+  //    - for Drupal 6 version need to remove op and form_build_id
+  unset($_POST['q'], $_POST['op'], $_POST['form_build_id']);
+
+//  $serialized = serialize($_POST['serialized']);
+  $serialized = $_POST['serialized'];
+
+  // check if node has just been saved - if it has then it's because AS ajax fired off as user was submitting
+  // if it had just been submitted - no need to AS now
+  //    - easy to figure out if we are submitting an edit to existing node
+  //    - little harder if we have just added a node
+  $path_args = explode("/", $path);
+  // update case
+  if (is_numeric($path_args[1])) {
+    $submitted = node_load($path_args[1]);
+  }
+  else {
+    // add case
+    $submitted->changed = db_query("SELECT created FROM {node} WHERE uid = :uid and type = :type ORDER BY created DESC LIMIT 1", array(':uid' => $user->uid, ':type' => str_replace("-", "_", $path_args[2])))->fetchField();
+  }
+
+  if (!$submitted || (REQUEST_TIME - $submitted->changed) > 10) {
+    // Currently, each user can have only one autosave form at a particular path.
+    db_delete('autosaved_forms')
+      ->condition('form_id', $form_id)
+      ->condition('path', $path)
+      ->condition('uid', $user->uid)
+      ->execute();
+   
+  $id = db_insert('autosaved_forms')
+    ->fields(array(
+        'form_id' => $form_id,
+        'path' => $path,
+        'uid' => $user->uid,
+        'timestamp' => REQUEST_TIME,
+        'serialized' => $serialized,
+      ))
+    ->execute();
+  }
+
+  exit();
+}
+
+/**
+ * Get the autosaved form at a particular path for a user.
+ *
+ * @param string $form_id
+ *   The form_id of the form.
+ * @param string $path
+ *   The the internal Drupal path where the form is located
+ * @param string $uid
+ *   Drupal UID of the user
+ * @return
+ *   An array containing the serialized values of the autosaved form and the timestamp of when the form was autosaved.
+ */
+function autosave_get_autosaved_form($form_id, $path, $uid) {
+  $result = db_query("SELECT form_id, serialized, timestamp FROM {autosaved_forms} WHERE form_id = :form_id AND path = :path AND uid = :uid", 
+    array(':form_id' => $form_id, ':path' => $path, ':uid' => $uid));
+
+  $form = FALSE;
+  foreach ($result as $data) {
+    $form['serialized'] = $data->serialized;
+    $form['timestamp'] = $data->timestamp;
+  }
+  return $form;
+}
+
+/**
+ * Implements hook_node_presave().
+ */
+function autosave_node_presave($node) {
+  if (TRUE) {
+    // we remove ALL edits for that page (not just the users) to avoid:
+    //  - user1 asaves but doesnt submit
+    //  - user2 edits same node and submits
+    //  - user1 comes back to edit -> user1 SHOULD lose edits since user2 has precedence
+    db_delete('autosaved_forms')
+      ->condition('form_id', $node->form_id)
+      ->condition('path', $_GET['q'])
+      ->execute();
+  }
+}
+
+/**
+ * Implements hook_nodeapi().
+().
+ *
+ * Delete autosave table entry on successful submit (add or update) of node
+ *
+ */
+function autosave_nodeapi_OLD(&$node, $op, $a3 = NULL, $a4 = NULL) { }

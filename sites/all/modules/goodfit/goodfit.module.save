@@ -1,0 +1,11 @@
+<?php
+
+function goodfit_form_alter(&$form, &$form_state, $form_id) {
+
+$category_choice = $form['field_category_choice']['und'][0]['value']['#default_value']);
+
+foreach ($form['#groups'] AS $group -> $group_obj) {
+}
+
+
+}

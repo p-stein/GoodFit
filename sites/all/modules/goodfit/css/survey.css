@@ -1,0 +1,243 @@
+@font-face {
+ font-family: AlteHaasRegular;
+ src: url("/fonts/AlteHaasGroteskRegular.eot") /* EOT file for IE */
+}
+@font-face {
+ font-family: AlteHaasRegular;
+ src: url("/fonts/AlteHaasGroteskRegular.ttf") /* TTF file for CSS3 browsers */
+}
+</style>
+
+@font-face {
+ font-family: AlteHaasBold;
+ src: url("/fonts/AlteHaasGroteskBold.eot") /* EOT file for IE */
+}
+@font-face {
+ font-family: AlteHaasBold;
+ src: url("/fonts/AlteHaasGroteskBold.ttf") /* TTF file for CSS3 browsers */
+}
+
+
+.survey_category * {
+	font-size: 16px;
+}
+
+.survey_category .category_bullet {
+	position: absolute;
+	float: left;
+	width: 16px;
+	height: 16px;
+        background-image: url('circle16.png');
+	background-repeat: none;
+	clear: left;
+	margin-top: 2px;
+}
+
+.survey_category {
+	float: left;
+	margin-right: 10px;
+	width: 130px;
+	height: 40px;
+	padding: 5px;
+	margin-top: -10px;
+
+  background-color: #DDDDDD;
+  background-image: -moz-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+  background-image: -ms-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+  background-image: -o-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+
+  background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #ffffff), color-stop(1, #ffffff), color-stop(2, #DDDDDD), color-stop(3, #CCCCCC));
+  background-image: -webkit-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+  background-image: linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+
+	border: 1px solid #EEEEEE;
+
+}
+
+.survey_category .survey_category_label {
+	margin-left: 22px;	
+}
+
+.current_category {
+	font-weight: bold;
+}
+
+.current_category .category_bullet {
+	margin-top: 0;
+	width: 32px;
+	height: 32px;
+	margin-left: -16px;
+	background-image: url('arrow32.png');
+}
+
+
+.category_finished .category_bullet {
+	background-image: url('check16.png');
+}
+
+
+#block-system-main {
+	clear: left;
+}
+
+
+HTML #wrapper {
+	width: 100%;
+}
+
+
+HTML #block-system-main fieldset {
+	border: 0;
+	padding: 0;
+	width: 800px;
+	float: left;
+	clear: none;
+}
+
+HTML fieldset .fieldset-legend {
+	display: none;
+}
+
+
+HTML fieldset fieldset .fieldset-legend {
+	display: inline;
+	font-size: 1.5em;
+}
+
+HTML #block-system-main {
+	padding: 10px;
+}
+
+#block-views-survey-progress-block {
+	overflow: hidden;
+	top: 0px;
+	margin: 0;
+
+        -moz-box-shadow: 0px 0px 20px #999999;
+        -webkit-box-shadow: 0px 0px 20px #999999;
+        box-shadow: 0px 0px 20px #999999;
+
+  background-color: #DDDDDD;
+  background-image: -moz-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+  background-image: -ms-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+  background-image: -o-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+
+  background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #ffffff), color-stop(1, #ffffff), color-stop(2, #DDDDDD), color-stop(3, #CCCCCC));
+  background-image: -webkit-linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+  background-image: linear-gradient(top, #ffffff 0%, #ffffff 50%, #DDDDDD 90%, #CCCCCC 100%);
+
+
+}
+
+HTML.js BODY.node-type-fit-survey {
+	padding: 0px;
+}
+
+
+HTML #block-system-main {
+
+	height: 350px;
+	overflow-y: auto;  
+
+}
+
+#edit-actions {
+	padding: 0;
+	position: fixed;
+	bottom: 0px;
+}
+
+#edit-choose-section {
+	padding: 0;
+	position: fixed; 
+	bottom: 0px;
+	right: 0;
+}
+
+#edit-choose-section .fieldset-legend {
+	display: block;
+}
+
+.node-fit_survey-form .form-item .form-item {
+	float: left;
+	width: 150px;
+	height: 150px;
+	margin-right: 10px;
+	background-color: #EEEEEE;
+	background-image: url('tight_butt.jpg');
+	color: white;
+}
+
+.node-fit_survey-form .form-item .form-item {
+	position: relative;
+}
+
+.node-fit_survey-form .form-item .form-item input {
+	position: absolute;
+	top: 10px;
+	left: 70px;
+	margin: 0;
+	padding: 0;
+	z-index: 100;
+}
+
+.node-fit_survey-form .form-item .form-item label {
+	font-size: 1.25em;
+	background-color: rgba(0,0,0,.5);
+	padding: 4px;
+	display: block;
+	width: 142px;
+	margin: 0;
+	position: absolute;
+	bottom: 0px;
+}
+
+
+.node-fit_survey-form .form-wrapper {
+	clear: left;
+	overflow: hidden; 
+}
+
+.node-fit_survey-form .fieldset-wrapper {
+	padding-top: 10px;
+}
+
+HTML #block-system-main {
+	overflow-x: hidden;
+	overflow-y: auto;
+/*	height: 400px; */
+}
+
+.nyroModalCont {
+	overflow: hidden;
+}
+
+HTML.js body {
+	overflow-x: hidden;
+	background-color: transparent;
+}
+
+#block-views-survey-progress-block h2 {
+	color: #999999;
+	text-transform: uppercase;
+	font-family: AlteHaasRegular, Arial, Helvetica;
+}
+
+#block-system-main,
+#block-system-main .content  {
+	overflow-x: hidden; 
+}
+
+#block-system-main {
+	width: 780px;
+	overflow-y:auto;
+}
+
+#block-system-main FORM {
+	overflow-x: hidden;
+	overflow-y: auto;
+/*
+	width: 20000px;
+*/
+}
+

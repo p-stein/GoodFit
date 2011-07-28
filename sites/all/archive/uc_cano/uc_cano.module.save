@@ -1,0 +1,261 @@
+<?php
+drupal_add_css(drupal_get_path('module', 'uc_cano') . '/uc_cano.css');
+drupal_add_js(drupal_get_path('module', 'uc_cano') . '/uc_cano.js');
+
+/**
+ * Implementation of hook_menu().
+ */
+function uc_cano_menu() {
+  $items['admin/store/settings/cano'] = array(
+    'title' => 'CANO',
+    'page callback' => 'uc_cano_definitions',
+    'access arguments' => array('administer cano configuration'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'uc_cano.admin.inc',
+  );
+  $items['admin/store/settings/cano/definitions'] = array(
+    'title' => 'CANO Definitions',
+    'page callback' => 'uc_cano_definitions',
+    'access arguments' => array('administer cano configuration'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'file' => 'uc_cano.admin.inc',
+    'weight'           => -11,
+  );
+  $items['admin/store/settings/cano/add/definitions'] = array(
+    'title' => 'Add Definitions',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_cano_admin_general_form'),
+    'access arguments' => array('administer cano configuration'),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uc_cano.admin.inc',
+    'weight'           => -10,
+  );
+  $items['js/uc_cano/filter_attr_options'] = array(
+    'title' => 'CANO filter options',
+    'page callback' => 'js_uc_cano_filter_attr_options',
+    'access arguments' => array('administer cano configuration'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/store/settings/cano/definitions/delete'] = array(
+    'title' => 'Delete Definition',
+    'page callback' => 'uc_cano_delete_definition',
+    'access arguments' => array('administer cano configuration'),
+    'type' => MENU_CALLBACK,
+    'file' => 'uc_cano.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_perm
+ */
+function uc_cano_perm() {
+  return array(
+    'administer cano configuration'
+  );
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function uc_cano_form_alter(&$form, $form_state, $form_id) {
+  if (strstr($form_id, 'uc_product_add_to_cart_form_')) {
+    if($form['attributes']) {
+      $attributes = $form['attributes'];
+      foreach($attributes as $aid => $attr) {
+        if(uc_cano_is_parent_attribute($aid, $form['node']['#value']->type) && $attr['#type'] == 'select') {
+          $js_array = array();
+          foreach($attr['#options'] as $oid => $option) {
+            $pcid = ($form['node']['#value']->type == "product") ? "0" : $form['node']['#value']->type;
+            $dependent_attr_sql = "SELECT dependent_aid, type FROM {uc_cano} WHERE oid = '%d' AND pcid = '%s'";
+            $dependent_attr_sql_res = db_query($dependent_attr_sql, $oid, $pcid);
+
+
+            $type = '';
+            while($dependent_attr = db_fetch_object($dependent_attr_sql_res)) {
+              $js_array[$oid][$dependent_attr->dependent_aid] = $dependent_attr->type;
+            }
+            if($js_array[$oid]) {
+              //to handle undefined combinations
+              $extra_attr_sql = "SELECT dependent_aid, type FROM {uc_cano} WHERE aid = '%d' AND oid != '%d' AND pcid = '%s'";
+              $extra_attr_sql_result = db_query($extra_attr_sql, $aid, $oid, $pcid);
+              $extra_attr_arr = array();
+              while($extra_attr_rec = db_fetch_object($extra_attr_sql_result)) {
+                $extra_attr_arr[$extra_attr_rec->dependent_aid][] = $extra_attr_rec->type;
+              }
+              foreach($extra_attr_arr as $key => $val) {
+                if(!$js_array[$oid][$key] && in_array('enable', $extra_attr_arr[$key])) {
+                  $js_array[$oid][$key] = 'disabled';
+                }
+                else if(!$js_array[$oid][$key] && in_array('disable', $extra_attr_arr[$key])) {
+                  $js_array[$oid][$key] = 'enabled';
+                }
+              }
+            }
+            
+
+          }
+          $form['attributes'][$aid]['#attributes'] = array('onchange' => 'uc_cano_parent_attr_trigger(this.id, this.value, ' . drupal_to_js($js_array) . ')', 'class' => 'uc-cano-parent-attr');
+        }
+        if(uc_cano_is_dependent_attribute($aid, $form['node']['#value']->type)) {
+
+          if(is_array($form['attributes'][$aid]['#attributes'])) {
+            if($form['attributes'][$aid]['#attributes']['class'] == 'uc-cano-parent-attr') {
+              $form['attributes'][$aid]['#attributes']['class'] = 'uc-cano-parent-dependent-attr uc-cano-dependent-attr';
+            }
+            else {
+             $form['attributes'][$aid]['#attributes']['class'] = 'uc-cano-dependent-attr';
+            }
+          }
+          else {
+           $form['attributes'][$aid]['#attributes'] = array('class' => 'uc-cano-dependent-attr');
+          }
+          //in order to handle required dependent attributes, we will need to assign them default values
+          if($form['attributes'][$aid]['#required'] && !$form['attributes'][$aid]['#default_value']) {
+            $form['attributes'][$aid]['#required'] = FALSE;
+            $form['attributes'][$aid]['#title'] .= ' <span class="form-required">*</span>';
+          }
+        }
+      }
+      $form['#validate'][] = 'uc_cano_add_to_cart_form_validate';
+    }
+  }
+  else if($form_id == 'uc_cano_admin_general_form') {
+    /*
+     * this is to rebuild the parent attribute options when form is submitted.
+     */
+    $product_classes = uc_cano_get_product_classes();
+    if(sizeof($form_state['post'])) {
+      foreach($product_classes as $pcid => $name) {
+        $form[$pcid]['parent_attr_options_' . $pcid]['#options'] = uc_cano_get_attribute_options($form_state['post']['parent_attr_' . $pcid]);
+      }
+    }
+  }
+}
+function uc_cano_is_dependent_attribute($aid, $pcid) {
+  if(!$aid) {
+    return FALSE;
+  }
+  $pcid = ($pcid == "product") ? '0' : $pcid;
+  //return db_result(db_query("SELECT def_id FROM {uc_cano} WHERE dependent_aid = '%d' AND pcid = '%s'", $aid, $pcid));
+  $result = db_query( sprintf("SELECT def_id FROM {uc_cano} WHERE dependent_aid = '%d' AND pcid = '%s'", $aid, $pcid) );
+  $result = $result->fetchColumn();
+  return $result;
+}
+function uc_cano_is_parent_attribute($aid, $pcid) {
+  if(!$aid) {
+    return FALSE;
+  }
+  $pcid = ($pcid == "product") ? '0' : $pcid;
+
+  //return db_result(db_query( sprintf("SELECT def_id FROM {uc_cano} WHERE aid = '%d' AND pcid = '%s'", $aid, $pcid) ));
+  $result = db_query( sprintf("SELECT def_id FROM {uc_cano} WHERE aid = '%d' AND pcid = '%s'", $aid, $pcid) );
+  $result = $result->fetchColumn();
+  return $result;
+}
+function uc_cano_get_product_classes() {
+  $product_classes = array('product');
+  $result = db_query("SELECT pcid, name, description FROM {uc_product_classes}");
+  while ($product_class = db_fetch_object($result)) {
+    $product_classes[$product_class->pcid] = $product_class->name;
+  }
+  return $product_classes;
+}
+/**
+ * returns an array of attributes defined through ubercart attributes module
+ */
+function uc_cano_get_parent_attributes() {
+  //fetch only select box control attributes
+  $result = db_query("SELECT aid, label FROM {uc_attributes} WHERE display = '%d'", 1);
+  $attributes = array();
+  while($rec = db_fetch_object($result)) {
+    $attributes[$rec->aid] = $rec->label;
+  }
+  return $attributes;
+}
+function uc_cano_get_all_attributes() {
+  //fetch only select box control attributes
+  $result = db_query("SELECT aid, label FROM {uc_attributes}");
+  $attributes = array();
+  while($rec = db_fetch_object($result)) {
+    $attributes[$rec->aid] = $rec->label;
+  }
+  return $attributes;
+}
+function js_uc_cano_filter_attr_options() {
+  $attr_id = arg(3);
+  $result = db_query("SELECT oid, name FROM {uc_attribute_options} WHERE aid = '%d'", $attr_id);
+  $options = array();
+  while($rec = db_fetch_object($result)) {
+    $options[$rec->oid] = $rec->name;
+  }
+  print(drupal_to_js($options));
+  exit;
+}
+function uc_cano_get_attribute_options($aid) {
+  $result = db_query("SELECT oid, name FROM {uc_attribute_options} WHERE aid = '%d'", $aid);
+  $options = array();
+  while($rec = db_fetch_object($result)) {
+    $options[$rec->oid] = $rec->name;
+  }
+  return $options;
+}
+function uc_cano_add_to_cart_form_validate($form, $form_state) {
+  if(count($form_state['values']['attributes'])) {
+    $pcid = ($form_state['values']['node']->type == 'product') ? '0' : $form_state['values']['node']->type;
+    $sql = "SELECT uc.aid, uc.oid, uc.dependent_aid, required
+            FROM {uc_cano} uc
+            INNER JOIN {uc_attributes} ua ON ua.aid = uc.dependent_aid
+            WHERE uc.pcid = '%s'";
+    $result = db_query($sql, $pcid);
+    $cano_def = array();
+    while($rec = db_fetch_object($result)) {
+      // check if the attributes is required globaly or set required only for the current product.
+      if($rec->required || $form_state['values']['node']->attributes[$rec->dependent_aid]->required) {
+        $cano_def[$rec->dependent_aid]['aid'] = $rec->aid;
+        $cano_def[$rec->dependent_aid]['oid'][] = $rec->oid;
+      }
+    }
+    foreach($cano_def as $dependent_aid => $parent_attr) {
+      if(!$form_state['values']['attributes'][$dependent_aid]) {
+        $selected_option = $form_state['values']['attributes'][$parent_attr['aid']];
+        $dependent_attr = uc_cano_get_attribute($dependent_aid);
+        if($dependency_type = db_result(db_query("SELECT type FROM {uc_cano} WHERE aid = '%d' AND oid = '%d' AND dependent_aid = '%d' AND pcid = '%s'", $parent_attr['aid'], $selected_option, $dependent_aid, $pcid))) {
+          if($dependency_type == 'enable') {
+            form_error($form['attributes'][$dependent_aid], $dependent_attr->label . t(' field is required.'));
+          }
+        }
+        else {
+          $extra_attr_sql = "SELECT oid, dependent_aid, type FROM {uc_cano} WHERE aid = '%d' AND oid != '%d' AND pcid = '%s'";
+          $extra_attr_sql_result = db_query($extra_attr_sql, $parent_attr['aid'], $selected_option, $pcid);
+          $extra_attr_arr = array();
+          while($rec = db_fetch_object($extra_attr_sql_result)) {
+            $extra_attr_arr[$rec->dependent_aid][] = $rec->type;
+          }
+          if(!count($extra_attr_arr)) {
+            //if no dependency defined
+            form_error($form['attributes'][$dependent_aid], $dependent_attr->label . t(' field is required.'));
+          }
+          else {
+            $enabled = false;
+            $disabled = false;
+            foreach($extra_attr_arr[$dependent_aid] as $dependency_type) {
+              if($dependency_type == 'enable') {
+                $enabled = true;
+              }
+              if($dependency_type == 'disable') {
+                $disabled = true;
+              }
+            }
+            if(!$enabled && $disabled) {
+              form_error($form['attributes'][$dependent_aid], $dependent_attr->label . t(' field is required.'));
+            }
+          }
+        }
+      }
+    }
+  }
+}
+function uc_cano_get_attribute($aid) {
+  return db_fetch_object(db_query("SELECT * FROM {uc_attributes} WHERE aid = '%d'", $aid));
+}

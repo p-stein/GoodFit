@@ -1,0 +1,40 @@
+.cck-slider-wrapper {
+  clear: both;
+  width: 100%;
+  margin-bottom: 65px;
+}
+
+.cck-slider-widget-wrapper {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.cck-slider-min {
+  float: left;
+  width: 8%;
+  margin-top: -5px;
+}
+
+.cck-slider-widget {
+  float: left;
+  width: 80%;
+}
+
+.cck-slider-max {
+  float: left;
+  width: 8%;
+  margin-top: -5px;
+}
+
+
+.ui-slider-handle.ui-state-default.ui-corner-all {
+  left: 40%;
+  background: url(images/handle.png) no-repeat 50% 50% scroll;
+  height: 45px;
+  width: 20px;
+  position:absolute;
+  border: none;
+  text-align: center;
+  margin-top: -25px;
+  text-decoration: none;
+}

@@ -1,0 +1,14 @@
+; $Id: uc_cano.info, Exp $
+name = CANO
+version = 1.3
+description = Chained Attributes and Options
+core = 7.x
+
+files[] = uc_cano.module 
+files[] = uc_cano.admin.inc
+
+dependencies[] = uc_product
+dependencies[] = uc_attribute
+configure = admin/store/settings/cano
+project = "uc_cano"
+

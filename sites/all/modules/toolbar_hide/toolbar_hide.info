@@ -1,0 +1,16 @@
+name = Toolbar Hider
+description = Shows/hides toolbar with the press of a key.
+package = Administration
+core = 7.x
+dependencies[] = toolbar
+files[] = toolbar_hide.module
+files[] = toolbar_hide.install
+
+configure = admin/config/user-interface/toolbar-hide
+
+; Information added by drupal.org packaging script on 2011-02-25
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "toolbar_hide"
+datestamp = "1298620421"
+

@@ -1,0 +1,76 @@
+<?php
+  // $Id: cck_slider.module,v 1.1 2010/12/16 22:22:56 jamesg Exp $
+
+/**
+ * @file
+ * The module file to cck_slider. This module provides a slider widget for an integer.
+ */
+
+/**
+ * Implementation of hook_widget_info().
+ */
+function cck_slider_widget_info() {
+  return array(
+    'cck_slider' => array(
+      'label' => t('Slider widget'),
+      'field types' => array('number_integer'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+      'callbacks' => array(
+        'default value' => CONTENT_CALLBACK_DEFAULT,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_widget_settings().
+ */
+function cck_slider_widget_settings($op, $widget) {
+  switch ($op) {
+    case 'form':
+      $form = array();
+      $increment_size = (isset($widget['increment_size']) && is_numeric($widget['increment_size'])) ? $widget['increment_size'] : 1;
+      $form['increment_size'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Increment Size'),
+        '#default_value' => $increment_size,
+        '#element_validate' => array('_element_validate_integer_positive'),
+        '#required' => TRUE,
+      );
+      return $form;
+    case 'save':
+      return array('increment_size');
+  }
+}
+
+/**
+ * Implementation of hook_widget().
+ */
+function cck_slider_widget(&$form, &$form_state, $field, $items, $delta = 0) {
+  jquery_ui_add('ui.slider');	 
+  drupal_add_js(drupal_get_path('module', 'cck_slider') . '/cck_slider.js');
+  drupal_add_css(drupal_get_path('module', 'cck_slider') . '/cck_slider.css');  
+  drupal_add_css(drupal_get_path('module', 'jquery_ui') . '/jquery.ui/themes/base/ui.all.css');
+
+  $element['value'] = array(
+    '#type' => 'textfield',
+    '#title' => $field['widget']['label'],
+	'#description' => $field['widget']['description'],
+	'#default_value' => isset($items[$delta]) ? $items[$delta]['value'] : $field['widget']['default_value'][0]['values'],
+    '#attributes' => array('class' => 'cck-slider-field'),
+	'#prefix' => '<div class="cck-slider-wrapper">',
+	'#suffix' => '<div class="cck-slider-widget-wrapper"><div class="cck-slider-min"></div><div class="cck-slider-widget"></div><div class="cck-slider-max"></div></div></div>',
+  );
+
+  drupal_add_js(array(
+    'cck_slider' => array(
+	  $field['field_name'] => array(
+	    'default' => $element['value']['#default_value'] ? $element['value']['#default_value'] : 50,
+        'min' => $field['min'] ? $field['min'] : 0,
+        'max' => $field['max'] ? $field['max'] : 100,
+		'increment_size' => $field['widget']['increment_size'] ? $field['widget']['increment_size']  : 5,
+		),
+	  )
+	), 'setting');
+  return $element;
+}

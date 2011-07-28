@@ -1,0 +1,12 @@
+<?php
+// $Id$
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function special_menu_items_uninstall() {
+  variable_del('special_menu_items_nolink_tag');
+  variable_del('special_menu_items_seperator_tag');
+  variable_del('special_menu_items_seperator_value');
+  variable_del('special_menu_items_menu_item_link');
+}

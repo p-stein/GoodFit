@@ -1,0 +1,545 @@
+
+<?php
+
+function goodfit_menu() {
+  $items = array();
+
+  $items['import_products'] = array(
+    'title' => 'Import Products',
+    'page callback' => 'goodfit_import_products',
+    'access arguments' => array('administer products'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+
+function goodfit_import_products() {
+	$output = "Importing products...";
+	require_once("fit/sizevars.php");
+
+	$newID = array(
+		1       => 1,           // slim straight
+		2       => 13,  // slim straight grey                
+		3       => 14,
+		4       => 15,          
+		5       => 16,
+		6       => 17,
+		7       => 18,
+		8       => 19,
+		9       => 20,
+		10      => 21,            
+		11      => 22,
+		12      => 23,
+		13      => 25,
+		14      => 26,
+		15      => 27,
+		16      => 28,
+	);
+
+
+	$size_aid = 1;
+	$class_aid = 2;
+
+	$classes = array(
+		"Misses" => 3,
+		"Juniors" => 4,
+		"Petites" => 5,
+	);
+
+	$count = 0;
+
+	foreach ($sizes AS $title => $sizes_data) {
+		$output .= "<h2>" . $title . "</h2>";
+		//new dBug($sizes_data);
+		$count++;
+		$nid = $newID[$count];
+
+		$options = array();
+
+		db_query("DELETE from uc_product_attributes WHERE nid = " . $nid);
+
+		db_query("INSERT into uc_product_attributes (nid, aid, label, required, display) VALUES ($nid, 1, 'Size', 1, 1)");
+		db_query("INSERT into uc_product_attributes (nid, aid, label, required, display) VALUES ($nid, 2, 'Class', 1, 1)");
+
+
+		$output .= "<p>INSERT into uc_product_attributes (nid, aid, label, required, display) VALUES ($nid, 1, 'Size', 1, 1)</p>";
+		$output .= "<p>INSERT into uc_product_attributes (nid, aid, label, required, display) VALUES ($nid, 2, 'Class', 1, 1)</p>";
+
+		db_query("DELETE from uc_product_options WHERE nid = $nid");
+		db_query("DELETE FROM uc_attribute_stock WHERE nid = $nid");
+
+		foreach ($sizes_data AS $size_name => $size_data) {
+			$class = ucfirst(reset(preg_split('/_/', $size_name)));
+			
+			$output .= "<h5>" . $class . "</h5>";
+			$class_oid = $classes[$class];
+			$output .= "<p>class oid for $class is $class_oid</p>";
+
+			$query = db_query("SELECT oid FROM uc_attribute_options WHERE name = '" . $size_data['shortname'] . "'");
+			$oid = $query->fetchColumn();
+			if (!is_numeric($oid) || $oid == 0) {
+				db_query("INSERT into uc_attribute_options (aid, name) VALUES (1, '" . $size_data['shortname'] . "')");
+				$output .= "<P>INSERT into uc_attribute_options (aid, name) VALUES (1, '" . $size_data['shortname'] . "')</p>";
+
+				$query = db_query("SELECT oid FROM uc_attribute_options WHERE name = '" . $size_data['shortname'] . "'");
+				$oid = $query->fetchColumn();
+			}
+	
+			if (!array_key_exists($oid, $options)) {
+				$options[$oid] = true;
+				db_query("INSERT into uc_product_options (nid, oid) VALUES ($nid, $oid)");
+				$output .= "<P>INSERT into uc_product_options (nid, oid) VALUES ($nid, $oid)</p>";
+			}
+
+			if (!array_key_exists($class_oid, $options)) {
+				$options[$class_oid] = true;
+				db_query("INSERT into uc_product_options (nid, oid) VALUES ($nid, $class_oid)");
+				$output .= "<p>(inserting oid $class_oid for class $class)INSERT into uc_product_options (nid, oid) VALUES ($nid, $class_oid)</p>";
+			}
+			
+
+			$combo =  serialize(array(1=>$oid, 2=>$class_oid));
+			db_query("INSERT INTO uc_attribute_stock (nid, active, combination) VALUES ($nid, 1, :combo)", array(':combo' => $combo));
+
+
+		}
+	}
+
+	return $output;
+
+}
+
+
+function goodfit_hide_additional_settings(&$form) {
+	$form['options']['#type'] = "value";
+	$form['options']['promote']['#type'] = "value";
+	$form['options']['sticky']['#type'] = "value";
+	$form['options']['status']['#type'] = "value";
+	$form['additional_settings']['#type'] = "value";
+	$form['revision_information']['#type'] = "value";
+	$form['revision_information']['revision']['#type'] = "value";
+	$form['revision_information']['log']['#type'] = "value";
+	$form['author']['#type'] = "value";
+	$form['author']['name']['#type'] = "value";
+	$form['author']['date']['#type'] = "value";
+	$form['path']['#type'] = "value";
+	$form['path']['alias']['#type'] = "value";
+}
+
+function goodfit_process_fields(&$form) {
+	global $user;
+	$form_type = $form['type']['#value']; 		// e.g. fit_survey
+
+	$all_settings = field_info_instances();
+	$all_settings = $all_settings['node'][$form_type];
+
+	foreach ($form as $attr => $value) {
+
+		$this_settings = array();
+		if (array_key_exists($attr, $all_settings))
+			$this_settings = $all_settings[$attr];
+
+		if (!is_array($value) || !array_key_exists("#language", $value))
+			continue;
+
+		$field = $value[$value['#language']];
+		if (!array_key_exists("0", $field))
+			continue;
+
+		preg_match('/\[(.*)\]/', $field['#description'], $classes);
+		array_shift($classes);
+
+		foreach ($classes AS $class) {
+			$field[0]['value']['#description'] = str_replace("[" . $class . "]", "", $field[0]['value']['#description']);
+			$field[0]['value']['#attributes']['class'][] = $class;
+			$field['#attributes']['class'][] = $class;
+		}
+
+		if (array_key_exists("max", $this_settings['settings']) && is_numeric($this_settings['settings']['max']))
+			$field[0]['value']['#attributes']['max'][] = $this_settings['settings']['max'];
+		if (array_key_exists("min", $this_settings['settings']) && is_numeric($this_settings['settings']['min']))
+			$field[0]['value']['#attributes']['min'][] = $this_settings['settings']['min'];
+
+
+		$form[$attr][$value['#language']] = $field;
+
+		if ($attr == "field_height") {
+		}
+
+	}
+}
+
+
+function check_survey() {
+	
+}
+
+function goodfit_form_alter(&$form, &$form_state, $form_id) {
+	global $user;
+
+	if ($form['#id'] != "fit-survey-node-form")
+		return;
+
+	drupal_add_js(drupal_get_path('module', 'goodfit') . '/js/dump.js');
+	drupal_add_js(drupal_get_path('module', 'goodfit') . '/js/parseUri.js');
+
+	if (!is_numeric($form['nid']['#value'])) {
+
+		global $user;
+		$result = db_query("SELECT * from node n where n.uid = $user->uid AND n.type = 'fit_survey' AND status = 1 ORDER BY nid desc limit 1");
+		$record = $result->fetchAssoc();
+
+		if ($record != null) {
+			$last_survey_id = $record['nid']; 
+			drupal_goto("node/" . $last_survey_id . "/edit");
+			exit;
+		} else {
+			$node = new stdClass();
+			$node->uid = $user->uid;
+			$node->type = "fit_survey";
+			$node = node_submit($node);
+			node_save($node);
+			drupal_goto("node/" . $node->nid . "/edit");
+			exit;
+		}
+	}
+
+	drupal_add_library('system', 'ui.slider');
+	drupal_add_js(drupal_get_path('module', 'goodfit') . '/js/slide.js');
+	drupal_add_js(drupal_get_path('module', 'goodfit') . '/js/jquery.slideto.js');
+	drupal_add_css(drupal_get_path('module', 'goodfit') . '/css/survey.css');
+
+
+	goodfit_process_fields($form);
+	goodfit_hide_additional_settings($form);
+
+	$form['actions']['submit']['#weight'] = 1000;
+	$form['actions']['submit']['#value'] = t("Submit \xC2\xBB"); // Submit &raquo;
+//	$form['actions']['delete']['#type'] = 'hidden';
+
+ $form['actions']['submit']['#ajax'] = array( 
+      // #ajax has two required keys: callback and wrapper.     
+      // 'callback' is a function that will be called when this element changes.
+      'callback' => 'goodfit_ajax_callback',
+      // 'wrapper' is the HTML id of the page element that will be replaced.
+      'wrapper' =>  'form-submit',
+      // There are also several optional keys - see ajax_example_autocheckboxes
+      // below for details on 'method', 'effect' and 'speed' and
+      // ajax_example_dependent_dropdown for 'event'.
+);	
+
+
+
+	// should use field_get_items instead of pointing to 'und'?
+
+	$category = $form['field_category_choice']['und'][0]['value']['#default_value'];
+
+	$form['field_category_choice']['und'][0]['value']['#type'] = "hidden";
+
+	if (!is_numeric($category))
+		$category = -1;
+
+	$found_category = false;
+	$found_next_question = false;
+
+	$current_has_more = false;
+
+	$groups = array();
+	foreach ($form['#groups'] AS $group_key => $group_obj) {
+$first_child = $group_obj->children[0];
+$form[$first_child]['und']['#field_prefix'] = '<a name="' . $group_obj->group_name . '"></a>';
+
+		if (!empty($group_obj->parent_name))
+			continue;
+
+		$group_obj->format_type = "hidden";
+
+
+//new dBug($form);
+//exit;
+//		$group_obj->attributes']['style'] = "float: left; margin-right: 10px;";
+
+		$groups[$group_obj->weight] = $group_obj;
+	}
+
+	ksort($groups);
+
+	$form['#groups'] = array();
+	foreach ($groups AS $group) {
+		$form['#groups'][$group->group_name] = $group;
+	}
+
+	$current_group = reset($form['#groups']);
+	
+	$current_group_id = -1;
+
+	$sections = array();
+	foreach ($form['#groups'] AS $group => $group_obj) {
+		$group_obj->next_ordering = explode("-", $group_obj->format_settings['instance_settings']['classes']);
+	}
+
+
+	$node = node_load($form['nid']['#value']);
+
+	if ($node == null)
+		return;
+
+	$section_num = 1;
+	foreach ($form['#groups'] AS $group => $group_obj) {
+		$group_obj->section_number = $section_num;
+		$section_num++;
+
+		$group_obj->total_questions = 0;
+		$group_obj->answered_questions = 0;
+		$group_obj->unanswered_questions = 0;
+
+		if ($category == $group_obj->section_number) {
+			$found_category = true;
+			$current_group = $group_obj;
+			$current_group_id = $current_group->section_number;
+		}
+
+
+		$group_questions = array();
+
+		foreach ($group_obj->children AS $child_num => $child_field_name) {
+			$question_subgroup = new stdClass();
+			$question_subgroup->questions = array();
+
+			if (strpos($child_field_name, "field_") !== false)
+				array_push($question_subgroup->questions, $child_field_name);
+			else {
+				$subgroup_obj = $form['#fieldgroups'][$child_field_name];
+				foreach ($subgroup_obj->children AS $subchild_num => $subchild_field_name) {
+					array_push($question_subgroup->questions, $subchild_field_name);
+				}
+
+			}
+
+			array_push($group_questions, $question_subgroup);
+		}
+		$group_obj->group_questions = $group_questions;
+
+
+		$group_obj->total_questions = count($group_obj->group_questions);
+
+		foreach ($group_obj->group_questions AS $question_group_num => $question_group) {
+			$question_group->answered = true;
+
+
+			foreach ($question_group->questions AS $child_num => $child_field_name) {
+
+				if (!property_exists($node, $child_field_name))
+					continue;
+
+				$child_value = $node->$child_field_name;
+				$answered = !empty($child_value);
+
+				if (!$answered)
+					$question_group->answered = false;
+
+//				$form[$child_field_name]['#attributes']['id'] = "edit-" . preg_replace('/_/', '-',  $child_field_name);
+
+
+
+//				$form[$child_field_name]['#old_type'] = $form[$child_field_name]['#type'];
+//				$form[$child_field_name]['#type'] = "value";
+
+//				$form[$child_field_name]['#access'] = false;
+			}
+
+			if ($question_group->answered)
+				$group_obj->answered_questions++;
+			else {
+				$group_obj->unanswered_questions++;
+			}
+
+		}
+	}
+
+	$current_group_id = $current_group->section_number;
+
+
+	$next_groups = array();
+
+	foreach ($current_group->next_ordering AS $group_id) {
+		// ensure we have 1,2,3 even if we get a,b,c or A,b,C etc.
+		if (!is_numeric($group_id))
+			$group_id = ord( strtoupper($group_id ) ) - ord('A') + 1;
+
+		if (empty($group_id) || $group_id == "0")
+			$group_id = 0;
+
+		$next_group = reset(array_slice($form['#groups'], $group_id - 1, 1));
+
+		if (is_object($next_group))
+			array_push($next_groups, $next_group);
+	}
+
+	// now our groups are in order
+	$got_question = false;
+
+	$_SESSION['survey'] = new stdClass();
+
+
+	foreach ($next_groups AS $group_id => $group_obj) {
+		if ($group_obj->unanswered_questions < 1)
+			continue;
+
+		foreach ($group_obj->group_questions AS $question_group_num => $question_group) {
+			if ($got_question)
+				continue;
+
+			if ($question_group->answered)
+				continue;
+
+			foreach ($group_obj->group_questions AS $question_group_num => $question_group) {
+				if ($got_question)
+					break;
+
+
+				foreach ($question_group->questions AS $child_num => $child_field_name) {
+					if (!property_exists($node, $child_field_name))
+						continue;
+
+					$child_value = $node->$child_field_name;
+	                                $answered = !empty($child_value);
+
+					if ($answered)
+						continue;
+
+					$current_group = $group_obj;
+					$current_group_id = $current_group->section_number;
+
+					if (array_key_exists('und', $form[$child_field_name]) && array_key_exists('#options', $form[$child_field_name]['und'])) {
+						foreach ($form[$child_field_name]['und']['#options'] AS $key => $label) {
+							$form[$child_field_name]['und']['#options'][$key] = preg_replace('/_.*/', '', $form[$child_field_name]['und']['#options'][$key]);
+						}
+
+					}
+	
+//					$form[$child_field_name]['#type'] = $form[$child_field_name]['#old_type'];
+					$form[$child_field_name]['#access'] = true;
+
+					$group_obj->format_type = "fieldset";
+					$got_question = true;
+
+					continue;
+				}
+			}
+		}
+
+	}
+
+	$_SESSION['survey']->current_group_id = $current_group_id;
+	$_SESSION['survey']->groups = $next_groups;
+
+		
+	$form['choose_section'] = array(
+		'#title' => "I'd rather answer... ",
+		'#weight' => 2000,
+		'#collapsible' => false,
+		'#type' => 'fieldset',
+	);
+
+	$next_buttons_displayed = 0;
+
+
+	$count_of_choose_sections = 0;
+	foreach ($next_groups AS $group => $group_obj) {
+		if ($group_obj->section_number == $current_group_id) 
+			continue;
+		if ($group_obj->unanswered_questions <= 0)
+			continue;
+		if ($next_buttons_displayed >= 2)
+			break;
+
+		$count_of_choose_sections++;
+
+		$next_buttons_displayed++;
+		$form['choose_section'][$group_obj->group_name]['submit'] = array(
+			'#parent' => "choose_section",
+			'#submit' => array('goodfit_choose_section'),
+			'#type' => 'submit',
+			'#value' => $group_obj->label . ' ( ' . $group_obj->unanswered_questions . ' left)',
+			'#return_value' => $group_obj->section_number,
+		);
+	}
+
+	if ($count_of_choose_sections < 1)
+		unset($form['choose_section']);
+
+	$form['actions']['submit']['#submit'][] = 'goodfit_choose_section';
+
+} // end of hook_form_alter()
+
+
+function goodfit_choose_section(&$form, &$form_state) {
+	$node_id = $form['#node']->nid;
+	$form_state['redirect'] = 'node/' . $node_id . '/edit';
+
+	$button = $form_state['triggering_element'];
+	if (array_key_exists('#return_value', $button)) {
+		$new_category = $button['#return_value'];
+		$node = node_load($node_id);
+		$node->field_category_choice['und'][0]['value'] = $new_category;
+		node_save($node);
+	}
+}
+
+
+function goodfit_node_update($node) {
+	return;
+} // end of hook_node_update()
+
+
+function goodfit_views_pre_render (&$view) {
+global $user;
+/*
+if ($user->uid == 1) {
+if ($view->name == "uc_products") {
+//new dBug($view->query->orderby);
+}
+}
+*/
+}
+
+function goodfit_views_pre_execute (&$view) {
+
+global $user;
+if (1==1 || $user->uid == 1) {
+if ($view->name == "uc_products") {
+
+if (!array_key_exists('product_order', $_SESSION) || empty($_SESSION['product_order'])) {
+        $_SESSION['product_order'] = array(0);
+}
+
+
+array_unshift($view->query->orderby, array(
+
+"field" => "find_in_set(node.nid, '" . implode(',', array_reverse($_SESSION['product_order'])) . "')",
+"direction" => "desc",
+
+));
+
+
+$view->built = false;
+unset($view->build_info);
+$view->build();
+
+}
+}
+
+
+}
+
+
+function goodfit_ajax_callback($form, $form_state) {
+  // The form has already been submitted and updated. We can return the replaced
+  // item as it is.
+
+//  return $form;
+}
+
